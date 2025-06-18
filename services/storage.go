@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	. "github.com/Simcha-b/Podcast-Hub/internal/models"
+	. "github.com/Simcha-b/Podcast-Hub/models"
 )
 
 type Storage interface {

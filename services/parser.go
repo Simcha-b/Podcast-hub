@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	. "github.com/Simcha-b/Podcast-Hub/internal/models"
+	. "github.com/Simcha-b/Podcast-Hub/models"
 )
 
 type Parser interface {
