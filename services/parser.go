@@ -1,64 +1,41 @@
 package services
 
 import (
-	"encoding/xml"
 	"fmt"
-	"io"
-	"net/http"
+	"log"
 	"time"
 
-	. "github.com/Simcha-b/Podcast-Hub/models"
+	"github.com/Simcha-b/Podcast-Hub/models"
+	"github.com/Simcha-b/Podcast-Hub/utils"
+	"github.com/mmcdole/gofeed"
 )
 
-type Parser interface {
-	ParseFeed(url string) (*Podcast, []*Episode, error)
-}
+var Logger = utils.NewLogger("info")
 
-type RSSParser struct{}
-
-func (p *RSSParser) ParseFeed(url string) (*Podcast, []*Episode, error) {
-	resp, err := http.Get(url)
+func parseRSSFeed(url string) ([]models.Episode, error) {
+	fp := gofeed.NewParser()
+	feed, err := fp.ParseURL(url)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch RSS feed: %w", err)
+		log.Fatalf("Error parsing RSS feed: %v", err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("received non-200 response: %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	var rss Feed
-	if err := xml.Unmarshal(body, &rss); err != nil {
-		return nil, nil, fmt.Errorf("failed to parse XML: %w", err)
-	}
-
-	podcast := &Podcast{
-		ID:          rss.Channel.ID,
-		Title:       rss.Channel.Title,
-		Description: rss.Channel.Description,
-		ImageURL:    rss.Channel.Image.URL,
-		FeedURL:     url,
-	}
-
-	var episodes []*Episode
-	for _, item := range rss.Channel.Items {
-		pubDate, _ := time.Parse(time.RFC1123Z, item.PubDate)
-		episodes = append(episodes, &Episode{
+	Logger.Info(fmt.Sprintf("Successfully parsed RSS feed: %s", feed.Title))
+	var episodes []models.Episode
+	for _, item := range feed.Items {
+		episode := models.Episode{
 			ID:          item.GUID,
-			Name:        item.Title,
+			PodcastID:   time.Now().Format("20060102150405"), // Placeholder for PodcastID, should be replaced with actual logic
+			Title:       item.Title,
 			Description: item.Description,
-			PubDate:     pubDate,
-			URL:         item.Enclosure.URL,
-			Duration:    item.Enclosure.Length,
-			Type:        item.Enclosure.Type,
-			ImageURL:    item.Image.URL,
-		})
+			Link:        item.Link,
+			AudioURL:    item.Enclosures[0].URL, // Assuming the first enclosure is the audio file
+			// Duration:   item.Duration,
+			// PublishedAt: item.PublishedParsed,
+			// FileSize:    item.Enclosures[0].Length, // Assuming the first enclosure is the audio file
+			CreatedAt: time.Now(), // Set to current time, adjust as needed
+		}
+		episodes = append(episodes, episode)
 	}
-
-	return podcast, episodes, nil
+	Logger.Info(fmt.Sprintf("Parsed %d episodes from the feed", len(episodes)))
+	fmt.Println("Parsed episodes:", episodes[0]) //TODO: Remove this line in production
+	return episodes, nil
 }

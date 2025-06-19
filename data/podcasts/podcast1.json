@@ -1,0 +1,12 @@
+{
+  "id": "podcast1",
+  "title": "My Podcast",
+  "description": "A great podcast about interesting topics.",
+  "author": "",
+  "image_url": "http://example.com/image.jpg",
+  "feed_url": "",
+  "category": "",
+  "language": "",
+  "created_at": "0001-01-01T00:00:00Z",
+  "updated_at": "0001-01-01T00:00:00Z"
+}
