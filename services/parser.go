@@ -2,40 +2,69 @@ package services
 
 import (
 	"fmt"
-	"log"
+	"strconv"
 	"time"
-
 	"github.com/Simcha-b/Podcast-Hub/models"
 	"github.com/Simcha-b/Podcast-Hub/utils"
 	"github.com/mmcdole/gofeed"
 )
 
+// Logger instance for logging within the parser service
 var Logger = utils.NewLogger("info")
 
-func parseRSSFeed(url string) ([]models.Episode, error) {
+// parseRSSFeed parses an RSS feed from the given URL and returns a Podcast and its Episodes
+func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
 	fp := gofeed.NewParser()
 	feed, err := fp.ParseURL(url)
 	if err != nil {
-		log.Fatalf("Error parsing RSS feed: %v", err)
+		// Log and return error if RSS feed parsing fails
+		Logger.Error(fmt.Sprintf("Failed to parse RSS feed from URL %s: %v", url, err))
+		return nil, nil, fmt.Errorf("failed to parse RSS feed: %w", err)
 	}
 	Logger.Info(fmt.Sprintf("Successfully parsed RSS feed: %s", feed.Title))
+
+	// Generate a unique podcast ID based on the feed URL
+	// podcastID := utils.HashString(url)
+		podcastID := "The_changelog" // Placeholder for podcast ID generation logic, e.g., using a hash function
+	// Build Podcast struct from feed data
+	podcast := &models.Podcast{
+		ID:          podcastID,
+		Title:       feed.Title,
+		Description: feed.Description,
+		Author:      feed.Author.Name,
+		ImageURL:    feed.Image.URL,
+		FeedURL:     url,
+		Category:    "", // Optional: can parse from feed.Extensions or custom logic
+		Language:    feed.Language,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
 	var episodes []models.Episode
+	// Iterate over feed items to build Episode structs
 	for _, item := range feed.Items {
 		episode := models.Episode{
 			ID:          item.GUID,
-			PodcastID:   time.Now().Format("20060102150405"), // Placeholder for PodcastID, should be replaced with actual logic
+			PodcastID:   podcastID,
 			Title:       item.Title,
 			Description: item.Description,
-			Link:        item.Link,
-			AudioURL:    item.Enclosures[0].URL, // Assuming the first enclosure is the audio file
-			// Duration:   item.Duration,
-			// PublishedAt: item.PublishedParsed,
-			// FileSize:    item.Enclosures[0].Length, // Assuming the first enclosure is the audio file
-			CreatedAt: time.Now(), // Set to current time, adjust as needed
+			CreatedAt:   time.Now(),
+		}
+
+		// Set PublishedAt if available in the feed item
+		if item.PublishedParsed != nil {
+			episode.PublishedAt = *item.PublishedParsed
+		}
+
+		// Extract audio URL and file size from enclosure if present
+		if len(item.Enclosures) > 0 {
+			episode.AudioURL = item.Enclosures[0].URL
+			// Convert file size from string to int64
+			episode.FileSize, _ = strconv.ParseInt(item.Enclosures[0].Length, 10, 64)
 		}
 		episodes = append(episodes, episode)
 	}
 	Logger.Info(fmt.Sprintf("Parsed %d episodes from the feed", len(episodes)))
 	fmt.Println("Parsed episodes:", episodes[0]) //TODO: Remove this line in production
-	return episodes, nil
+	return podcast, episodes, nil
 }

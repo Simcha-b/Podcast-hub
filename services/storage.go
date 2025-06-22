@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	. "github.com/Simcha-b/Podcast-Hub/models"
+
+	"github.com/Simcha-b/Podcast-Hub/models"
 )
 
 type Storage interface {
-	SavePodcast(podcast *Podcast) error
-	LoadPodcast(id string) (*Podcast, error)
-	SaveEpisode(episode *Episode) error
-	LoadEpisode(podcastID, episodeID string) (*Episode, error)
+	SavePodcast(podcast *models.Podcast) error
+	LoadPodcast(id string) (*models.Podcast, error)
+	SaveEpisode(episode *models.Episode) error
+	LoadEpisode(podcastID, episodeID string) (*models.Episode, error)
 }
 
 type FileStorage struct {
@@ -24,9 +25,11 @@ func NewFileStorage(dataDir string) *FileStorage {
 	}
 }
 
-func (fs *FileStorage) SavePodcast(podcast *Podcast) error {
-	filePath := fmt.Sprintf("../%s/podcasts/%s.json", fs.dataDir, podcast.ID)
+func (fs *FileStorage) SavePodcast(podcast *models.Podcast) error {
+	filePath := fmt.Sprintf("%s/podcasts/%s.json", fs.dataDir, podcast.ID)
 	// Ensure the directory exists
+
+	// Marshal the podcast data to JSON
 
 	data, err := json.MarshalIndent(podcast, "", "  ")
 	if err != nil {
@@ -36,13 +39,13 @@ func (fs *FileStorage) SavePodcast(podcast *Podcast) error {
 	return os.WriteFile(filePath, data, 0644)
 }
 
-func (fs *FileStorage) LoadPodcast(id string) (*Podcast, error) {
-	filePath := fmt.Sprintf("../%s/podcasts/%s.json", fs.dataDir, id)
+func (fs *FileStorage) LoadPodcast(id string) (*models.Podcast, error) {
+	filePath := fmt.Sprintf("%s/podcasts/%s.json", fs.dataDir, id)
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	var podcast Podcast
+	var podcast models.Podcast
 	err = json.Unmarshal(data, &podcast)
 	if err != nil {
 		return nil, err
@@ -51,22 +54,26 @@ func (fs *FileStorage) LoadPodcast(id string) (*Podcast, error) {
 	return &podcast, nil
 }
 
-func (fs *FileStorage) SaveEpisode(episode *Episode) error {
-	filePath := fmt.Sprintf("../%s/episodes/%s/%s.json", fs.dataDir, episode.PodcastID, episode.ID)
+func (fs *FileStorage) SaveEpisode(episode *models.Episode) error {
+	filePath := fmt.Sprintf("%s/episodes/%s/%s.json", fs.dataDir, episode.PodcastID, episode.ID)
+	// Ensure the directory exists
+	if err := os.MkdirAll(fmt.Sprintf("%s/episodes/%s", fs.dataDir, episode.PodcastID), 0755); err != nil {
+		return fmt.Errorf("failed to create directory for episodes: %w", err)
+	}
 	data, err := json.MarshalIndent(episode, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(filePath, data, 0644)
 }
-func (fs *FileStorage) LoadEpisode(podcastID, episodeID string) (*Episode, error) {
-	filePath := fmt.Sprintf("../%s/episodes/%s/%s.json", fs.dataDir, podcastID, episodeID)
+func (fs *FileStorage) LoadEpisode(podcastID, episodeID string) (*models.Episode, error) {
+	filePath := fmt.Sprintf("%s/episodes/%s/%s.json", fs.dataDir, podcastID, episodeID)
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
 
-	var episode Episode
+	var episode models.Episode
 	err = json.Unmarshal(data, &episode)
 	if err != nil {
 		return nil, err
@@ -74,29 +81,3 @@ func (fs *FileStorage) LoadEpisode(podcastID, episodeID string) (*Episode, error
 
 	return &episode, nil
 }
-
-// func main() {
-// 	// Example usage
-// 	storage := NewFileStorage("data")
-
-// 	podcast := &Podcast{
-// 		ID:          "podcast1",
-// 		Title:       "My Podcast",
-// 		Description: "A great podcast about interesting topics.",
-// 		ImageURL:    "http://example.com/image.jpg",
-// 	}
-
-// 	err := storage.SavePodcast(podcast)
-// 	if err != nil {
-// 		fmt.Println("Error saving podcast:", err)
-// 		return
-// 	}
-
-// 	loadedPodcast, err := storage.LoadPodcast("podcast1")
-// 	if err != nil {
-// 		fmt.Println("Error loading podcast:", err)
-// 		return
-// 	}
-
-// 	fmt.Printf("Loaded podcast: %+v\n", loadedPodcast)
-// }
