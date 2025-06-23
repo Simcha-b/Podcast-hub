@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+
 	"github.com/Simcha-b/Podcast-Hub/models"
 	"github.com/Simcha-b/Podcast-Hub/utils"
 	"github.com/mmcdole/gofeed"
@@ -23,9 +24,7 @@ func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
 	}
 	Logger.Info(fmt.Sprintf("Successfully parsed RSS feed: %s", feed.Title))
 
-	// Generate a unique podcast ID based on the feed URL
-	// podcastID := utils.HashString(url)
-		podcastID := "The_changelog" // Placeholder for podcast ID generation logic, e.g., using a hash function
+	podcastID := "The_changelog" // Example podcast ID, should be unique per podcast
 	// Build Podcast struct from feed data
 	podcast := &models.Podcast{
 		ID:          podcastID,
@@ -65,6 +64,5 @@ func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
 		episodes = append(episodes, episode)
 	}
 	Logger.Info(fmt.Sprintf("Parsed %d episodes from the feed", len(episodes)))
-	fmt.Println("Parsed episodes:", episodes[0]) //TODO: Remove this line in production
 	return podcast, episodes, nil
 }

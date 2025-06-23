@@ -10,8 +10,10 @@ import (
 func main() {
 	fmt.Println("welcome to the Podcast-Hub!!")
 
-	// Logger := utils.NewLogger("info")
+	//  Logger := utils.NewLogger("info")
 
 	// Example usage of AggregateAllFeeds
 	services.RunAggregator()
+	
+	
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Simcha-b/Podcast-Hub/models"
 )
@@ -55,7 +56,8 @@ func (fs *FileStorage) LoadPodcast(id string) (*models.Podcast, error) {
 }
 
 func (fs *FileStorage) SaveEpisode(episode *models.Episode) error {
-	filePath := fmt.Sprintf("%s/episodes/%s/%s.json", fs.dataDir, episode.PodcastID, episode.ID)
+	episodeId := strings.Replace(episode.ID, "/", "_", -1) // Replace spaces with underscores for file naming
+	filePath := fmt.Sprintf("%s/episodes/%s/%s.json", fs.dataDir, episode.PodcastID, episodeId)
 	// Ensure the directory exists
 	if err := os.MkdirAll(fmt.Sprintf("%s/episodes/%s", fs.dataDir, episode.PodcastID), 0755); err != nil {
 		return fmt.Errorf("failed to create directory for episodes: %w", err)
@@ -67,6 +69,7 @@ func (fs *FileStorage) SaveEpisode(episode *models.Episode) error {
 	return os.WriteFile(filePath, data, 0644)
 }
 func (fs *FileStorage) LoadEpisode(podcastID, episodeID string) (*models.Episode, error) {
+	episodeID = strings.Replace(episodeID, "/", "_", -1) // Replace spaces with underscores for file naming
 	filePath := fmt.Sprintf("%s/episodes/%s/%s.json", fs.dataDir, podcastID, episodeID)
 	data, err := os.ReadFile(filePath)
 	if err != nil {

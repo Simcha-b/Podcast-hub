@@ -24,7 +24,7 @@ func LoadFeedSources(path string) ([]models.Feed, error) {
 }
 
 
-// UpdateFeedStatus מעדכן את הסטטוס של פיד (שדה errorCount, lastFetched וכו') בקובץ feeds.json
+
 func UpdateFeedStatus(source models.Feed, success bool) error {
 	feeds, err := LoadFeedSources("data/feeds.json")
 	if err != nil {
@@ -35,6 +35,7 @@ func UpdateFeedStatus(source models.Feed, success bool) error {
 			if success {
 				feeds[i].ErrorCount = 0
 				feeds[i].LastFetched = source.LastFetched
+				Logger.Info(fmt.Sprintf("Successfully updated feed %s status last fath: %s", feed.URL, feeds[i].LastFetched.Format("2006-01-02 15:04:05")))
 			} else {
 				feeds[i].ErrorCount++
 				if feeds[i].ErrorCount > 5 {
@@ -48,14 +49,12 @@ func UpdateFeedStatus(source models.Feed, success bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal updated feeds: %w", err)
 	}
-	if err := os.WriteFile("feeds.json", data, 0644); err != nil {
+	if err := os.WriteFile("data/feeds.json", data, 0644); err != nil {
 		return fmt.Errorf("failed to write updated feeds to file: %w", err)
 	}
 
 	return nil
 }
-
-
 
 // AggregateAllFeeds מריץ את כל הפידים אחד אחד (או מקבילי בהמשך) ועושה parsing ושמירה
 func AggregateAllFeeds(storage *FileStorage, feedSources []models.Feed) error {
@@ -101,8 +100,6 @@ func ProcessSingleFeed(storage *FileStorage, feed models.Feed) error {
 	// Update feed status
 	return nil
 }
-
-
 
 func RunAggregator() {
 	// Load feed sources from JSON file
