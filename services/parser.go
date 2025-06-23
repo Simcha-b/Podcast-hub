@@ -1,6 +1,8 @@
 package services
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"time"
@@ -13,6 +15,12 @@ import (
 // Logger instance for logging within the parser service
 var Logger = utils.NewLogger("info")
 
+func generatePodcastID(feedURL string) string {
+	h := sha1.New()
+	h.Write([]byte(feedURL))
+	return hex.EncodeToString(h.Sum(nil))[:12] // מזהה קצר
+}
+
 // parseRSSFeed parses an RSS feed from the given URL and returns a Podcast and its Episodes
 func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
 	fp := gofeed.NewParser()
@@ -23,9 +31,8 @@ func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
 		return nil, nil, fmt.Errorf("failed to parse RSS feed: %w", err)
 	}
 	Logger.Info(fmt.Sprintf("Successfully parsed RSS feed: %s", feed.Title))
-
-	podcastID := "The_changelog" // Example podcast ID, should be unique per podcast
 	// Build Podcast struct from feed data
+	podcastID := generatePodcastID(url)
 	podcast := &models.Podcast{
 		ID:          podcastID,
 		Title:       feed.Title,

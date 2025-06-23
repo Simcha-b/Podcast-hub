@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/Simcha-b/Podcast-Hub/models"
 )
@@ -13,7 +12,8 @@ type Storage interface {
 	SavePodcast(podcast *models.Podcast) error
 	LoadPodcast(id string) (*models.Podcast, error)
 	SaveEpisode(episode *models.Episode) error
-	LoadEpisode(podcastID, episodeID string) (*models.Episode, error)
+	LoadEpisodes(podcastID string) ([]models.Episode, error)
+	LoadEpisodeByID(podcastID, episodeID string) (*models.Episode, error)
 }
 
 type FileStorage struct {
@@ -26,61 +26,142 @@ func NewFileStorage(dataDir string) *FileStorage {
 	}
 }
 
+// שמירה של כל הפודקאסטים בקובץ אחד
 func (fs *FileStorage) SavePodcast(podcast *models.Podcast) error {
-	filePath := fmt.Sprintf("%s/podcasts/%s.json", fs.dataDir, podcast.ID)
-	// Ensure the directory exists
+	allPodcastsPath := fmt.Sprintf("%s/podcasts/all_podcasts.json", fs.dataDir)
+	podcasts, err := fs.LoadAllPodcasts()
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to load all podcasts: %w", err)
+	}
 
-	// Marshal the podcast data to JSON
+	// בדיקה אם הפודקאסט כבר קיים (עדכון במקום הוספה כפולה)
+	updated := false
+	for i, p := range podcasts {
+		if p.ID == podcast.ID {
+			podcasts[i] = *podcast
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		podcasts = append(podcasts, *podcast)
+	}
 
-	data, err := json.MarshalIndent(podcast, "", "  ")
+	data, err := json.MarshalIndent(podcasts, "", "  ")
 	if err != nil {
 		return err
 	}
-	os.Create(filePath) // Ensure the directory exists
-	return os.WriteFile(filePath, data, 0644)
+
+	if err := os.MkdirAll(fmt.Sprintf("%s/podcasts", fs.dataDir), 0755); err != nil {
+		return fmt.Errorf("failed to create directory for podcasts: %w", err)
+	}
+
+	return os.WriteFile(allPodcastsPath, data, 0644)
 }
 
+func (fs *FileStorage) LoadAllPodcasts() ([]models.Podcast, error) {
+	allPodcastsPath := fmt.Sprintf("%s/podcasts/all_podcasts.json", fs.dataDir)
+	data, err := os.ReadFile(allPodcastsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// טיפול במקרה של קובץ ריק
+	if len(data) == 0 {
+		return []models.Podcast{}, nil
+	}
+
+	var podcasts []models.Podcast
+	err = json.Unmarshal(data, &podcasts)
+	if err != nil {
+		return nil, err
+	}
+
+	return podcasts, nil
+}
+
+// שליפת פודקאסט לפי ID
 func (fs *FileStorage) LoadPodcast(id string) (*models.Podcast, error) {
-	filePath := fmt.Sprintf("%s/podcasts/%s.json", fs.dataDir, id)
-	data, err := os.ReadFile(filePath)
+	podcasts, err := fs.LoadAllPodcasts()
 	if err != nil {
-		return nil, err
-	}
-	var podcast models.Podcast
-	err = json.Unmarshal(data, &podcast)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load all podcasts: %w", err)
 	}
 
-	return &podcast, nil
+	for _, podcast := range podcasts {
+		if podcast.ID == id {
+			return &podcast, nil
+		}
+	}
+
+	return nil, fmt.Errorf("podcast with ID %s not found", id)
 }
 
+// שמירה של כל הפרקים של פודקאסט מסוים בקובץ אחד
 func (fs *FileStorage) SaveEpisode(episode *models.Episode) error {
-	episodeId := strings.Replace(episode.ID, "/", "_", -1) // Replace spaces with underscores for file naming
-	filePath := fmt.Sprintf("%s/episodes/%s/%s.json", fs.dataDir, episode.PodcastID, episodeId)
-	// Ensure the directory exists
-	if err := os.MkdirAll(fmt.Sprintf("%s/episodes/%s", fs.dataDir, episode.PodcastID), 0755); err != nil {
+	episodesPath := fmt.Sprintf("%s/episodes/episodes_%s.json", fs.dataDir, episode.PodcastID)
+	episodes, err := fs.LoadEpisodes(episode.PodcastID)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to load episodes for podcast %s: %w", episode.PodcastID, err)
+	}
+
+	// בדיקה אם הפרק כבר קיים (עדכון במקום הוספה כפולה)
+	updated := false
+	for i, ep := range episodes {
+		if ep.ID == episode.ID {
+			episodes[i] = *episode
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		episodes = append(episodes, *episode)
+	}
+
+	data, err := json.MarshalIndent(episodes, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(fmt.Sprintf("%s/episodes", fs.dataDir), 0755); err != nil {
 		return fmt.Errorf("failed to create directory for episodes: %w", err)
 	}
-	data, err := json.MarshalIndent(episode, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filePath, data, 0644)
+
+	return os.WriteFile(episodesPath, data, 0644)
 }
-func (fs *FileStorage) LoadEpisode(podcastID, episodeID string) (*models.Episode, error) {
-	episodeID = strings.Replace(episodeID, "/", "_", -1) // Replace spaces with underscores for file naming
-	filePath := fmt.Sprintf("%s/episodes/%s/%s.json", fs.dataDir, podcastID, episodeID)
-	data, err := os.ReadFile(filePath)
+
+// קריאה של כל הפרקים של פודקאסט מסוים
+func (fs *FileStorage) LoadEpisodes(podcastID string) ([]models.Episode, error) {
+	episodesPath := fmt.Sprintf("%s/episodes/episodes_%s.json", fs.dataDir, podcastID)
+	data, err := os.ReadFile(episodesPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var episode models.Episode
-	err = json.Unmarshal(data, &episode)
+	// טיפול במקרה של קובץ ריק
+	if len(data) == 0 {
+		return []models.Episode{}, nil
+	}
+
+	var episodes []models.Episode
+	err = json.Unmarshal(data, &episodes)
 	if err != nil {
 		return nil, err
 	}
 
-	return &episode, nil
+	return episodes, nil
+}
+
+// קריאה של פרק בודד לפי podcastID ו-episodeID
+func (fs *FileStorage) LoadEpisodeByID(podcastID, episodeID string) (*models.Episode, error) {
+	episodes, err := fs.LoadEpisodes(podcastID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ep := range episodes {
+		if ep.ID == episodeID {
+			return &ep, nil
+		}
+	}
+	return nil, fmt.Errorf("episode with ID %s for podcast %s not found", episodeID, podcastID)
 }
