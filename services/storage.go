@@ -66,11 +66,6 @@ func (fs *FileStorage) LoadAllPodcasts() ([]models.Podcast, error) {
 		return nil, err
 	}
 
-	// טיפול במקרה של קובץ ריק
-	if len(data) == 0 {
-		return []models.Podcast{}, nil
-	}
-
 	var podcasts []models.Podcast
 	err = json.Unmarshal(data, &podcasts)
 	if err != nil {
@@ -137,11 +132,6 @@ func (fs *FileStorage) LoadEpisodes(podcastID string) ([]models.Episode, error) 
 		return nil, err
 	}
 
-	// טיפול במקרה של קובץ ריק
-	if len(data) == 0 {
-		return []models.Episode{}, nil
-	}
-
 	var episodes []models.Episode
 	err = json.Unmarshal(data, &episodes)
 	if err != nil {
@@ -165,3 +155,5 @@ func (fs *FileStorage) LoadEpisodeByID(podcastID, episodeID string) (*models.Epi
 	}
 	return nil, fmt.Errorf("episode with ID %s for podcast %s not found", episodeID, podcastID)
 }
+
+

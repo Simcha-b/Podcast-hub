@@ -24,6 +24,7 @@ func generatePodcastID(feedURL string) string {
 // parseRSSFeed parses an RSS feed from the given URL and returns a Podcast and its Episodes
 func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
 	fp := gofeed.NewParser()
+
 	feed, err := fp.ParseURL(url)
 	if err != nil {
 		// Log and return error if RSS feed parsing fails

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/Simcha-b/Podcast-Hub/models"
 )
@@ -22,8 +23,6 @@ func LoadFeedSources(path string) ([]models.Feed, error) {
 
 	return feeds, nil
 }
-
-
 
 func UpdateFeedStatus(source models.Feed, success bool) error {
 	feeds, err := LoadFeedSources("data/feeds.json")
@@ -56,23 +55,58 @@ func UpdateFeedStatus(source models.Feed, success bool) error {
 	return nil
 }
 
-// AggregateAllFeeds מריץ את כל הפידים אחד אחד (או מקבילי בהמשך) ועושה parsing ושמירה
 func AggregateAllFeeds(storage *FileStorage, feedSources []models.Feed) error {
+	var wg sync.WaitGroup
 
 	for _, feed := range feedSources {
-		if err := ProcessSingleFeed(storage, feed); err != nil {
-			Logger.Error(fmt.Sprintf("Error processing feed %s: %v", feed.URL, err))
-			if err := UpdateFeedStatus(feed, false); err != nil {
+		wg.Add(1)
+		go func(feed models.Feed) {
+			defer wg.Done()
+			err := ProcessSingleFeed(storage, feed)
+			if err != nil {
+				Logger.Error(fmt.Sprintf("Error processing feed %s: %v", feed.URL, err))
+				if err := UpdateFeedStatus(feed, false); err != nil {
+					Logger.Error(fmt.Sprintf("Failed to update feed status for %s: %v", feed.URL, err))
+				}
+				return
+			}
+			if err := UpdateFeedStatus(feed, true); err != nil {
 				Logger.Error(fmt.Sprintf("Failed to update feed status for %s: %v", feed.URL, err))
 			}
-			continue
-		}
-		if err := UpdateFeedStatus(feed, true); err != nil {
-			Logger.Error(fmt.Sprintf("Failed to update feed status for %s: %v", feed.URL, err))
-		}
+		}(feed)
 	}
+	wg.Wait()
 	Logger.Info("All feeds processed successfully")
 	return nil // Placeholder return, implement actual logic
+}
+
+// IsPodcastOrEpisodesUpdated בודקת האם הפודקאסט או אחד הפרקים השתנה לעומת מה ששמור
+func IsPodcastOrEpisodesUpdated(storage *FileStorage, podcast *models.Podcast, episodes []models.Episode) (bool, error) {
+	existingPodcast, err := storage.LoadPodcast(podcast.ID)
+	if err != nil {
+		// אם לא קיים, יש לעדכן
+		return true, nil
+	}
+	if existingPodcast.UpdatedAt.Before(podcast.UpdatedAt) {
+		return true, nil
+	}
+	existingEpisodes, err := storage.LoadEpisodes(podcast.ID)
+	if err != nil {
+		// אם אין פרקים שמורים, יש לעדכן
+		return true, nil
+	}
+	// נבנה מפת מזהים לבדיקה מהירה
+	existingMap := make(map[string]models.Episode)
+	for _, ep := range existingEpisodes {
+		existingMap[ep.ID] = ep
+	}
+	for _, ep := range episodes {
+		existing, ok := existingMap[ep.ID]
+		if !ok || existing.PublishedAt.Before(ep.PublishedAt) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func ProcessSingleFeed(storage *FileStorage, feed models.Feed) error {
@@ -85,19 +119,40 @@ func ProcessSingleFeed(storage *FileStorage, feed models.Feed) error {
 		return fmt.Errorf("no valid podcast or episodes found for feed %s", feed.URL)
 	}
 
-	// Save podcast and episodes to storage
+	// שמור את הפודקאסט (אפשר גם לדלג אם לא השתנה, אבל לרוב אין בעיה לעדכן)
 	if err := storage.SavePodcast(podcast); err != nil {
 		Logger.Error(fmt.Sprintf("Failed to save podcast %s: %v", podcast.ID, err))
 		return err
 	}
+
+	// טען את כל הפרקים השמורים
+	existingEpisodes, err := storage.LoadEpisodes(podcast.ID)
+	if err != nil && !os.IsNotExist(err) {
+		Logger.Error(fmt.Sprintf("Failed to load episodes for podcast %s: %v", podcast.ID, err))
+		return err
+	}
+	existingMap := make(map[string]models.Episode)
+	for _, ep := range existingEpisodes {
+		existingMap[ep.ID] = ep
+	}
+
+	// שמור רק פרקים חדשים (או כאלה שלא קיימים)
+	newCount := 0
 	for _, episode := range episodes {
-		if err := storage.SaveEpisode(&episode); err != nil {
-			Logger.Error(fmt.Sprintf("Failed to save episode %s for podcast %s: %v", episode.ID, podcast.ID, err))
-			return err
+		existing, ok := existingMap[episode.ID]
+		if !ok || episode.PublishedAt.After(existing.PublishedAt) {
+			if err := storage.SaveEpisode(&episode); err != nil {
+				Logger.Error(fmt.Sprintf("Failed to save episode %s for podcast %s: %v", episode.ID, podcast.ID, err))
+				return err
+			}
+			newCount++
 		}
 	}
-	Logger.Info(fmt.Sprintf("Successfully processed feed %s with %d episodes", feed.URL, len(episodes)))
-	// Update feed status
+	if newCount == 0 {
+		Logger.Info(fmt.Sprintf("No new episodes for podcast %s", podcast.ID))
+	} else {
+		Logger.Info(fmt.Sprintf("Added %d new episodes for podcast %s", newCount, podcast.ID))
+	}
 	return nil
 }
 
@@ -117,3 +172,4 @@ func RunAggregator() {
 		Logger.Error(fmt.Sprintf("Error aggregating feeds: %v", err))
 	}
 }
+
