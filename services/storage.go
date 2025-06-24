@@ -10,7 +10,8 @@ import (
 
 type Storage interface {
 	SavePodcast(podcast *models.Podcast) error
-	LoadPodcast(id string) (*models.Podcast, error)
+	LoadAllPodcasts() ([]models.Podcast, error)
+	LoadPodcastByID(id string) (*models.Podcast, error)
 	SaveEpisode(episode *models.Episode) error
 	LoadEpisodes(podcastID string) ([]models.Episode, error)
 	LoadEpisodeByID(podcastID, episodeID string) (*models.Episode, error)
@@ -26,7 +27,6 @@ func NewFileStorage(dataDir string) *FileStorage {
 	}
 }
 
-// שמירה של כל הפודקאסטים בקובץ אחד
 func (fs *FileStorage) SavePodcast(podcast *models.Podcast) error {
 	allPodcastsPath := fmt.Sprintf("%s/podcasts/all_podcasts.json", fs.dataDir)
 	podcasts, err := fs.LoadAllPodcasts()
@@ -75,23 +75,21 @@ func (fs *FileStorage) LoadAllPodcasts() ([]models.Podcast, error) {
 	return podcasts, nil
 }
 
-// שליפת פודקאסט לפי ID
-func (fs *FileStorage) LoadPodcast(id string) (*models.Podcast, error) {
+func (fs *FileStorage) LoadPodcastByID(id string) (*models.Podcast, error) {
 	podcasts, err := fs.LoadAllPodcasts()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load all podcasts: %w", err)
 	}
-
 	for _, podcast := range podcasts {
 		if podcast.ID == id {
+			Logger.Info(fmt.Sprintf("Podcast with ID %s found", id))
 			return &podcast, nil
 		}
+		Logger.Info(fmt.Sprintf("Podcast with ID %s not found", id))
 	}
-
-	return nil, fmt.Errorf("podcast with ID %s not found", id)
+	return nil, nil
 }
 
-// שמירה של כל הפרקים של פודקאסט מסוים בקובץ אחד
 func (fs *FileStorage) SaveEpisode(episode *models.Episode) error {
 	episodesPath := fmt.Sprintf("%s/episodes/episodes_%s.json", fs.dataDir, episode.PodcastID)
 	episodes, err := fs.LoadEpisodes(episode.PodcastID)
@@ -124,7 +122,6 @@ func (fs *FileStorage) SaveEpisode(episode *models.Episode) error {
 	return os.WriteFile(episodesPath, data, 0644)
 }
 
-// קריאה של כל הפרקים של פודקאסט מסוים
 func (fs *FileStorage) LoadEpisodes(podcastID string) ([]models.Episode, error) {
 	episodesPath := fmt.Sprintf("%s/episodes/episodes_%s.json", fs.dataDir, podcastID)
 	data, err := os.ReadFile(episodesPath)
@@ -141,7 +138,6 @@ func (fs *FileStorage) LoadEpisodes(podcastID string) ([]models.Episode, error) 
 	return episodes, nil
 }
 
-// קריאה של פרק בודד לפי podcastID ו-episodeID
 func (fs *FileStorage) LoadEpisodeByID(podcastID, episodeID string) (*models.Episode, error) {
 	episodes, err := fs.LoadEpisodes(podcastID)
 	if err != nil {
@@ -155,5 +151,3 @@ func (fs *FileStorage) LoadEpisodeByID(podcastID, episodeID string) (*models.Epi
 	}
 	return nil, fmt.Errorf("episode with ID %s for podcast %s not found", episodeID, podcastID)
 }
-
-

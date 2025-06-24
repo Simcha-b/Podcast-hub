@@ -55,6 +55,54 @@ func UpdateFeedStatus(source models.Feed, success bool) error {
 	return nil
 }
 
+func addFeedToSources(feed models.Feed) error {
+	feeds, err := LoadFeedSources("data/feeds.json")
+	if err != nil {
+		return fmt.Errorf("failed to load feed sources: %w", err)
+	}
+	// Check if the feed already exists
+	for _, existingFeed := range feeds {
+		if existingFeed.URL == feed.URL {
+			Logger.Info(fmt.Sprintf("Feed %s already exists, skipping addition", feed.URL))
+			return nil // Feed already exists, no need to add
+		}
+	}
+	feeds = append(feeds, feed)
+	data, err := json.MarshalIndent(feeds, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated feeds: %w", err)
+	}
+	if err := os.WriteFile("data/feeds.json", data, 0644); err != nil {
+		return fmt.Errorf("failed to write updated feeds to file: %w", err)
+	}
+	Logger.Info(fmt.Sprintf("Successfully added feed %s to sources", feed.URL))
+	return nil
+}
+
+func DeleteFeedFromSources(feedURL string) error {
+	feeds, err := LoadFeedSources("data/feeds.json")
+	if err != nil {
+		return fmt.Errorf("failed to load feed sources: %w", err)
+	}
+	var updatedFeeds []models.Feed
+	for _, feed := range feeds {
+		if feed.URL != feedURL {
+			updatedFeeds = append(updatedFeeds, feed)
+		} else {
+			Logger.Info(fmt.Sprintf("Successfully deleted feed %s from sources", feedURL))
+		}
+	}
+	data, err := json.MarshalIndent(updatedFeeds, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated feeds: %w", err)
+	}
+	if err := os.WriteFile("data/feeds.json", data, 0644); err != nil {
+		return fmt.Errorf("failed to write updated feeds to file: %w", err)
+	}
+	Logger.Info(fmt.Sprintf("Successfully deleted feed %s from sources", feedURL))
+	return nil
+}
+
 func AggregateAllFeeds(storage *FileStorage, feedSources []models.Feed) error {
 	var wg sync.WaitGroup
 
@@ -80,9 +128,8 @@ func AggregateAllFeeds(storage *FileStorage, feedSources []models.Feed) error {
 	return nil // Placeholder return, implement actual logic
 }
 
-// IsPodcastOrEpisodesUpdated בודקת האם הפודקאסט או אחד הפרקים השתנה לעומת מה ששמור
 func IsPodcastOrEpisodesUpdated(storage *FileStorage, podcast *models.Podcast, episodes []models.Episode) (bool, error) {
-	existingPodcast, err := storage.LoadPodcast(podcast.ID)
+	existingPodcast, err := storage.LoadPodcastByID(podcast.ID)
 	if err != nil {
 		// אם לא קיים, יש לעדכן
 		return true, nil
@@ -172,4 +219,3 @@ func RunAggregator() {
 		Logger.Error(fmt.Sprintf("Error aggregating feeds: %v", err))
 	}
 }
-
