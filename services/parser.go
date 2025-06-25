@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -35,11 +36,11 @@ func ParseNewFeedSources(url string) (*models.Feed, error) {
 	newfeed := &models.Feed{
 		URL:         url,
 		Name:        feed.Title, // Optional: can be set later
-		Description: feed.Description, // Optional: can be set later
 		Active:      true,
 		LastFetched: time.Now(),
 		ErrorCount:  0,
 	}
+	log.Printf(feed.Updated)	
 	Logger.Info(fmt.Sprintf("Successfully parsed RSS feed: %s", feed.Title))
 	return newfeed, nil
 }
@@ -64,7 +65,7 @@ func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
 		Author:      feed.Author.Name,
 		ImageURL:    feed.Image.URL,
 		FeedURL:     url,
-		Category:    "", // Optional: can parse from feed.Extensions or custom logic
+		Category:    "", 
 		Language:    feed.Language,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),

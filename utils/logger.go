@@ -14,8 +14,8 @@ type Logger struct {
 // NewLogger creates a new Logger based on the provided level ("info", "error", "debug")
 func NewLogger(level string) *Logger {
 	return &Logger{
-		infoLogger:  log.New(os.Stdout, "[INFO] ", log.Ldate|log.Ltime),
-		errorLogger: log.New(os.Stderr, "[ERROR] ", log.Ldate|log.Ltime),
+		infoLogger:  log.New(os.Stdout, "[INFO] ", log.Ldate|log.Ltime|log.Lshortfile),
+		errorLogger: log.New(os.Stderr, "[ERROR] ", log.Ldate|log.Ltime|log.Lshortfile),
 		level:       level,
 	}
 }

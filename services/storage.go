@@ -2,12 +2,17 @@ package services
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Simcha-b/Podcast-Hub/models"
 )
+
+var ErrNotFound = errors.New("not found")
 
 type Storage interface {
 	SavePodcast(podcast *models.Podcast) error
@@ -87,9 +92,10 @@ func (fs *FileStorage) LoadPodcastByID(id string) (*models.Podcast, error) {
 			Logger.Info(fmt.Sprintf("Podcast with ID %s found", id))
 			return &podcast, nil
 		}
+
 		Logger.Info(fmt.Sprintf("Podcast with ID %s not found", id))
 	}
-	return nil, nil
+	return nil, ErrNotFound
 }
 
 func (fs *FileStorage) SaveEpisode(episode *models.Episode) error {
@@ -99,7 +105,6 @@ func (fs *FileStorage) SaveEpisode(episode *models.Episode) error {
 		return fmt.Errorf("failed to load episodes for podcast %s: %w", episode.PodcastID, err)
 	}
 
-	// בדיקה אם הפרק כבר קיים (עדכון במקום הוספה כפולה)
 	updated := false
 	for i, ep := range episodes {
 		if ep.ID == episode.ID {
@@ -128,7 +133,7 @@ func (fs *FileStorage) LoadEpisodes(podcastID string) ([]models.Episode, error) 
 	episodesPath := fmt.Sprintf("%s/episodes/episodes_%s.json", fs.dataDir, podcastID)
 	data, err := os.ReadFile(episodesPath)
 	if err != nil {
-		return nil, err
+		return nil, ErrNotFound
 	}
 
 	var episodes []models.Episode
@@ -148,10 +153,48 @@ func (fs *FileStorage) LoadEpisodeByID(podcastID, episodeID string) (*models.Epi
 
 	for _, ep := range episodes {
 		if ep.ID == episodeID {
+			Logger.Info(fmt.Sprintf("Episode with ID %s found in podcast %s", episodeID, podcastID))
 			return &ep, nil
 		}
 	}
-	return nil, fmt.Errorf("episode with ID %s for podcast %s not found", episodeID, podcastID)
+	Logger.Info(fmt.Sprintf("Episode with ID %s not found in podcast %s", episodeID, podcastID))
+	return nil, ErrNotFound
+}
+
+func (fs *FileStorage) LoadLastEpisodes() ([]models.Episode, error) {
+	// Check if the episodes directory exists
+	files, err := os.ReadDir(fmt.Sprintf("%s/episodes", fs.dataDir))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read episodes directory: %w", err)
+	}
+	var lasteps []models.Episode
+
+	for _, file := range files {
+		if !file.IsDir() && strings.HasPrefix(file.Name(), "episodes_") && strings.HasSuffix(file.Name(), ".json") {
+			filePath := filepath.Join(fs.dataDir, "episodes", file.Name())
+			data, err := os.ReadFile(filePath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read episode file %s: %w", file.Name(), err)
+			}
+			Logger.Info(fmt.Sprintf("Processing file: %s", file.Name()))
+			var eps []models.Episode
+			err = json.Unmarshal(data, &eps)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal episodes from file %s: %w", file.Name(), err)
+			}
+			for i := range eps {
+				if eps[i].PublishedAt.After(time.Now().AddDate(0, 0, -7)) {
+					lasteps = append(lasteps, eps[i])
+				}
+			}
+		}
+	}
+	if len(lasteps) == 0 {
+		Logger.Info("No episodes found in the last 7 days")
+		return nil, fmt.Errorf("no episodes found in the last 7 days")
+	}
+	Logger.Info(fmt.Sprintf("Found %d episodes in the last 7 days", len(lasteps)))
+	return lasteps, nil
 }
 
 func (fs *FileStorage) SearchPodcasts(query string) ([]models.Podcast, error) {
@@ -168,9 +211,8 @@ func (fs *FileStorage) SearchPodcasts(query string) ([]models.Podcast, error) {
 	}
 
 	if len(results) == 0 {
-		return nil, fmt.Errorf("no podcasts found for query: %s", query)
+		return nil, ErrNotFound
 	}
-
 	return results, nil
 }
 

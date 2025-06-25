@@ -80,27 +80,32 @@ func AddFeedToSources(feed models.Feed) error {
 }
 
 func DeleteFeedFromSources(feedURL string) error {
-	feeds, err := LoadFeedSources("data/feeds.json")
-	if err != nil {
-		return fmt.Errorf("failed to load feed sources: %w", err)
-	}
-	var updatedFeeds []models.Feed
-	for _, feed := range feeds {
-		if feed.URL != feedURL {
-			updatedFeeds = append(updatedFeeds, feed)
-		} else {
-			Logger.Info(fmt.Sprintf("Successfully deleted feed %s from sources", feedURL))
-		}
-	}
-	data, err := json.MarshalIndent(updatedFeeds, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal updated feeds: %w", err)
-	}
-	if err := os.WriteFile("data/feeds.json", data, 0644); err != nil {
-		return fmt.Errorf("failed to write updated feeds to file: %w", err)
-	}
-	Logger.Info(fmt.Sprintf("Successfully deleted feed %s from sources", feedURL))
-	return nil
+    feeds, err := LoadFeedSources("data/feeds.json")
+    if err != nil {
+        return fmt.Errorf("failed to load feed sources: %w", err)
+    }
+    var updatedFeeds []models.Feed
+    found := false
+    for _, feed := range feeds {
+        if feed.URL == feedURL {
+            found = true
+        } else {
+            updatedFeeds = append(updatedFeeds, feed)
+        }
+    }
+    if !found {
+		Logger.Error(fmt.Sprintf("Feed %s not found, nothing to delete", feedURL))
+        return ErrNotFound
+    }
+    data, err := json.MarshalIndent(updatedFeeds, "", "  ")
+    if err != nil {
+        return fmt.Errorf("failed to marshal updated feeds: %w", err)
+    }
+    if err := os.WriteFile("data/feeds.json", data, 0644); err != nil {
+        return fmt.Errorf("failed to write updated feeds to file: %w", err)
+    }
+    Logger.Info(fmt.Sprintf("Successfully deleted feed %s from sources", feedURL))
+    return nil
 }
 
 func AggregateAllFeeds(storage *FileStorage, feedSources []models.Feed) error {
@@ -131,7 +136,6 @@ func AggregateAllFeeds(storage *FileStorage, feedSources []models.Feed) error {
 func IsPodcastOrEpisodesUpdated(storage *FileStorage, podcast *models.Podcast, episodes []models.Episode) (bool, error) {
 	existingPodcast, err := storage.LoadPodcastByID(podcast.ID)
 	if err != nil {
-		// אם לא קיים, יש לעדכן
 		return true, nil
 	}
 	if existingPodcast.UpdatedAt.Before(podcast.UpdatedAt) {
@@ -139,10 +143,8 @@ func IsPodcastOrEpisodesUpdated(storage *FileStorage, podcast *models.Podcast, e
 	}
 	existingEpisodes, err := storage.LoadEpisodes(podcast.ID)
 	if err != nil {
-		// אם אין פרקים שמורים, יש לעדכן
 		return true, nil
 	}
-	// נבנה מפת מזהים לבדיקה מהירה
 	existingMap := make(map[string]models.Episode)
 	for _, ep := range existingEpisodes {
 		existingMap[ep.ID] = ep
@@ -166,7 +168,6 @@ func ProcessSingleFeed(storage *FileStorage, feed models.Feed) error {
 		return fmt.Errorf("no valid podcast or episodes found for feed %s", feed.URL)
 	}
 
-	// שמור את הפודקאסט (אפשר גם לדלג אם לא השתנה, אבל לרוב אין בעיה לעדכן)
 	if err := storage.SavePodcast(podcast); err != nil {
 		Logger.Error(fmt.Sprintf("Failed to save podcast %s: %v", podcast.ID, err))
 		return err
