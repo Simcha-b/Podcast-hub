@@ -83,19 +83,18 @@ func (fs *FileStorage) LoadAllPodcasts() ([]models.Podcast, error) {
 }
 
 func (fs *FileStorage) LoadPodcastByID(id string) (*models.Podcast, error) {
-	podcasts, err := fs.LoadAllPodcasts()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load all podcasts: %w", err)
-	}
-	for _, podcast := range podcasts {
-		if podcast.ID == id {
-			Logger.Info(fmt.Sprintf("Podcast with ID %s found", id))
-			return &podcast, nil
-		}
-
-		Logger.Info(fmt.Sprintf("Podcast with ID %s not found", id))
-	}
-	return nil, ErrNotFound
+    podcasts, err := fs.LoadAllPodcasts()
+    if err != nil {
+        return nil, fmt.Errorf("failed to load all podcasts: %w", err)
+    }
+    for _, podcast := range podcasts {
+        if podcast.ID == id {
+            Logger.Info(fmt.Sprintf("Podcast with ID %s found", id))
+            return &podcast, nil
+        }
+    }
+    Logger.Error(fmt.Sprintf("Podcast with ID %s not found", id))
+    return nil, ErrNotFound
 }
 
 func (fs *FileStorage) SaveEpisode(episode *models.Episode) error {
