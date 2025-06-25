@@ -20,7 +20,7 @@ func main() {
 	r.HandleFunc("/api/episodes", handlers.GetEpisodes).Methods("GET")
 	r.HandleFunc("/api/search", handlers.Search).Methods("GET")
 	r.HandleFunc("/api/stats", handlers.GetStats).Methods("GET")
-	r.HandleFunc("/api/feeds", handlers.AddFeed).Methods("POST")
+	r.HandleFunc("/api/feeds", handlers.AddFeed).Methods("GET")
 	r.HandleFunc("/api/feeds/{url}", handlers.DeleteFeed).Methods("DELETE")
 	r.HandleFunc("/api/reports/daily", handlers.GetDailyReport).Methods("GET")
 

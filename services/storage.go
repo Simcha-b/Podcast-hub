@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Simcha-b/Podcast-Hub/models"
 )
@@ -15,6 +16,7 @@ type Storage interface {
 	SaveEpisode(episode *models.Episode) error
 	LoadEpisodes(podcastID string) ([]models.Episode, error)
 	LoadEpisodeByID(podcastID, episodeID string) (*models.Episode, error)
+	SearchPodcasts(query string) ([]models.Podcast, error)
 }
 
 type FileStorage struct {
@@ -150,4 +152,28 @@ func (fs *FileStorage) LoadEpisodeByID(podcastID, episodeID string) (*models.Epi
 		}
 	}
 	return nil, fmt.Errorf("episode with ID %s for podcast %s not found", episodeID, podcastID)
+}
+
+func (fs *FileStorage) SearchPodcasts(query string) ([]models.Podcast, error) {
+	podcasts, err := fs.LoadAllPodcasts()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load podcasts: %w", err)
+	}
+
+	var results []models.Podcast
+	for _, podcast := range podcasts {
+		if containsIgnoreCase(podcast.Title, query) || containsIgnoreCase(podcast.Description, query) {
+			results = append(results, podcast)
+		}
+	}
+
+	if len(results) == 0 {
+		return nil, fmt.Errorf("no podcasts found for query: %s", query)
+	}
+
+	return results, nil
+}
+
+func containsIgnoreCase(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }

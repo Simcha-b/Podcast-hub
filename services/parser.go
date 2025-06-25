@@ -21,10 +21,33 @@ func generatePodcastID(feedURL string) string {
 	return hex.EncodeToString(h.Sum(nil))[:12] // מזהה קצר
 }
 
+func ParseNewFeedSources(url string) (*models.Feed, error) {
+	// Create a new Feed instance with the provided URL
+	fp := gofeed.NewParser()
+
+	feed, err := fp.ParseURL(url)
+	if err != nil {
+		// Log and return error if RSS feed parsing fails
+		Logger.Error(fmt.Sprintf("Failed to parse RSS feed from URL %s: %v", url, err))
+		return &models.Feed{}, err
+	}
+	// Create a new Feed struct from the parsed feed data
+	newfeed := &models.Feed{
+		URL:         url,
+		Name:        feed.Title, // Optional: can be set later
+		Description: feed.Description, // Optional: can be set later
+		Active:      true,
+		LastFetched: time.Now(),
+		ErrorCount:  0,
+	}
+	Logger.Info(fmt.Sprintf("Successfully parsed RSS feed: %s", feed.Title))
+	return newfeed, nil
+}
+
 // parseRSSFeed parses an RSS feed from the given URL and returns a Podcast and its Episodes
 func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
 	fp := gofeed.NewParser()
-	
+
 	feed, err := fp.ParseURL(url)
 	if err != nil {
 		// Log and return error if RSS feed parsing fails

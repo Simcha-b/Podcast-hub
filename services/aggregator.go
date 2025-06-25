@@ -55,7 +55,7 @@ func UpdateFeedStatus(source models.Feed, success bool) error {
 	return nil
 }
 
-func addFeedToSources(feed models.Feed) error {
+func AddFeedToSources(feed models.Feed) error {
 	feeds, err := LoadFeedSources("data/feeds.json")
 	if err != nil {
 		return fmt.Errorf("failed to load feed sources: %w", err)
