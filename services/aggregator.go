@@ -159,49 +159,52 @@ func IsPodcastOrEpisodesUpdated(storage *FileStorage, podcast *models.Podcast, e
 }
 
 func ProcessSingleFeed(storage *FileStorage, feed models.Feed) error {
-	podcast, episodes, err := parseRSSFeed(feed.URL)
-	if err != nil {
-		Logger.Error(fmt.Sprintf("Failed to process feed %s: %v", feed.URL, err))
-		return err
-	}
-	if podcast == nil || len(episodes) == 0 {
-		return fmt.Errorf("no valid podcast or episodes found for feed %s", feed.URL)
-	}
+   podcast, episodes, err := parseRSSFeed(feed.URL)
+   if err != nil {
+   	Logger.Error(fmt.Sprintf("Failed to process feed %s: %v", feed.URL, err))
+   	return err
+   }
+   if podcast == nil || len(episodes) == 0 {
+   	return fmt.Errorf("no valid podcast or episodes found for feed %s", feed.URL)
+   }
 
-	if err := storage.SavePodcast(podcast); err != nil {
-		Logger.Error(fmt.Sprintf("Failed to save podcast %s: %v", podcast.ID, err))
-		return err
-	}
+   if err := storage.SavePodcast(podcast); err != nil {
+   	Logger.Error(fmt.Sprintf("Failed to save podcast %s: %v", podcast.ID, err))
+   	return err
+   }
 
-	// טען את כל הפרקים השמורים
-	existingEpisodes, err := storage.LoadEpisodes(podcast.ID)
-	if err != nil && !os.IsNotExist(err) {
-		Logger.Error(fmt.Sprintf("Failed to load episodes for podcast %s: %v", podcast.ID, err))
-		return err
-	}
-	existingMap := make(map[string]models.Episode)
-	for _, ep := range existingEpisodes {
-		existingMap[ep.ID] = ep
-	}
+   // טען את כל הפרקים השמורים (אם קיימים)
+   existingEpisodes, err := storage.LoadEpisodes(podcast.ID)
+   if err != nil {
+   	// אם הפודקאסט חדש, זה תקין - פשוט תתחיל עם רשימה ריקה
+   	Logger.Info(fmt.Sprintf("No existing episodes found for podcast %s (new podcast)", podcast.ID))
+   	existingEpisodes = []models.Episode{}
+   }
+   
+   existingMap := make(map[string]models.Episode)
+   for _, ep := range existingEpisodes {
+   	existingMap[ep.ID] = ep
+   }
 
-	// שמור רק פרקים חדשים (או כאלה שלא קיימים)
-	newCount := 0
-	for _, episode := range episodes {
-		existing, ok := existingMap[episode.ID]
-		if !ok || episode.PublishedAt.After(existing.PublishedAt) {
-			if err := storage.SaveEpisode(&episode); err != nil {
-				Logger.Error(fmt.Sprintf("Failed to save episode %s for podcast %s: %v", episode.ID, podcast.ID, err))
-				return err
-			}
-			newCount++
-		}
-	}
-	if newCount == 0 {
-		Logger.Info(fmt.Sprintf("No new episodes for podcast %s", podcast.ID))
-	} else {
-		Logger.Info(fmt.Sprintf("Added %d new episodes for podcast %s", newCount, podcast.ID))
-	}
-	return nil
+   // שמור את כל הפרקים החדשים
+   newCount := 0
+   for _, episode := range episodes {
+   	if _, exists := existingMap[episode.ID]; !exists {
+   		if err := storage.SaveEpisode(&episode); err != nil {
+   			Logger.Error(fmt.Sprintf("Failed to save episode %s for podcast %s: %v", episode.ID, podcast.ID, err))
+   			return err
+   		}
+   		newCount++
+   	}
+   }
+   
+   if newCount == 0 {
+   	Logger.Info(fmt.Sprintf("No new episodes for podcast %s", podcast.ID))
+   } else {
+   	Logger.Info(fmt.Sprintf("Added %d new episodes for podcast %s", newCount, podcast.ID))
+   }
+   
+   return nil
 }
 
 func RunAggregator() {

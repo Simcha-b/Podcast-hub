@@ -87,7 +87,7 @@ func GetEpisodeByID(w http.ResponseWriter, r *http.Request) {
 	}
 	podcastId := vars["podcastId"]
 	episodeId := vars["episodeId"]
-	    
+
 	episode, err := storage.LoadEpisodeByID(podcastId, episodeId)
 	if err != nil {
 		if errors.Is(err, services.ErrNotFound) {
@@ -154,6 +154,7 @@ func AddFeed(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to save feed", http.StatusInternalServerError)
 		return
 	}
+	services.ProcessSingleFeed(storage, *feed)
 	Logger.Info("Successfully added new feed: " + feed.URL)
 	writeJSON(w, http.StatusCreated, feed)
 }

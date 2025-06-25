@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Simcha-b/Podcast-Hub/models"
@@ -83,25 +84,30 @@ func (fs *FileStorage) LoadAllPodcasts() ([]models.Podcast, error) {
 }
 
 func (fs *FileStorage) LoadPodcastByID(id string) (*models.Podcast, error) {
-    podcasts, err := fs.LoadAllPodcasts()
-    if err != nil {
-        return nil, fmt.Errorf("failed to load all podcasts: %w", err)
-    }
-    for _, podcast := range podcasts {
-        if podcast.ID == id {
-            Logger.Info(fmt.Sprintf("Podcast with ID %s found", id))
-            return &podcast, nil
-        }
-    }
-    Logger.Error(fmt.Sprintf("Podcast with ID %s not found", id))
-    return nil, ErrNotFound
+	podcasts, err := fs.LoadAllPodcasts()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load all podcasts: %w", err)
+	}
+	for _, podcast := range podcasts {
+		if podcast.ID == id {
+			Logger.Info(fmt.Sprintf("Podcast with ID %s found", id))
+			return &podcast, nil
+		}
+	}
+	Logger.Error(fmt.Sprintf("Podcast with ID %s not found", id))
+	return nil, ErrNotFound
 }
 
 func (fs *FileStorage) SaveEpisode(episode *models.Episode) error {
 	episodesPath := fmt.Sprintf("%s/episodes/episodes_%s.json", fs.dataDir, episode.PodcastID)
 	episodes, err := fs.LoadEpisodes(episode.PodcastID)
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil && err != ErrNotFound {
 		return fmt.Errorf("failed to load episodes for podcast %s: %w", episode.PodcastID, err)
+	}
+
+	// אם הקובץ לא קיים (ErrNotFound), תתחיל עם רשימה ריקה
+	if err == ErrNotFound {
+		episodes = []models.Episode{}
 	}
 
 	updated := false
@@ -166,32 +172,95 @@ func (fs *FileStorage) LoadLastEpisodes() ([]models.Episode, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read episodes directory: %w", err)
 	}
-	var lasteps []models.Episode
 
+	// Filter relevant files first
+	var episodeFiles []os.DirEntry
 	for _, file := range files {
 		if !file.IsDir() && strings.HasPrefix(file.Name(), "episodes_") && strings.HasSuffix(file.Name(), ".json") {
-			filePath := filepath.Join(fs.dataDir, "episodes", file.Name())
+			episodeFiles = append(episodeFiles, file)
+		}
+	}
+
+	if len(episodeFiles) == 0 {
+		Logger.Info("No episode files found")
+		return nil, fmt.Errorf("no episode files found")
+	}
+
+	// Channel for collecting results
+	type result struct {
+		episodes []models.Episode
+		err      error
+		filename string
+	}
+
+	resultChan := make(chan result, len(episodeFiles))
+
+	// Process files concurrently
+	var wg sync.WaitGroup
+	weekAgo := time.Now().AddDate(0, 0, -7)
+
+	for _, file := range episodeFiles {
+		wg.Add(1)
+		go func(f os.DirEntry) {
+			defer wg.Done()
+
+			filePath := filepath.Join(fs.dataDir, "episodes", f.Name())
 			data, err := os.ReadFile(filePath)
 			if err != nil {
-				return nil, fmt.Errorf("failed to read episode file %s: %w", file.Name(), err)
+				resultChan <- result{
+					err:      fmt.Errorf("failed to read episode file %s: %w", f.Name(), err),
+					filename: f.Name(),
+				}
+				return
 			}
-			Logger.Info(fmt.Sprintf("Processing file: %s", file.Name()))
+
+			Logger.Info(fmt.Sprintf("Processing file: %s", f.Name()))
+
 			var eps []models.Episode
 			err = json.Unmarshal(data, &eps)
 			if err != nil {
-				return nil, fmt.Errorf("failed to unmarshal episodes from file %s: %w", file.Name(), err)
+				resultChan <- result{
+					err:      fmt.Errorf("failed to unmarshal episodes from file %s: %w", f.Name(), err),
+					filename: f.Name(),
+				}
+				return
 			}
+
+			// Filter episodes from last 7 days
+			var recentEpisodes []models.Episode
 			for i := range eps {
-				if eps[i].PublishedAt.After(time.Now().AddDate(0, 0, -7)) {
-					lasteps = append(lasteps, eps[i])
+				if eps[i].PublishedAt.After(weekAgo) {
+					recentEpisodes = append(recentEpisodes, eps[i])
 				}
 			}
-		}
+
+			resultChan <- result{
+				episodes: recentEpisodes,
+				filename: f.Name(),
+			}
+		}(file)
 	}
+
+	// Close channel when all goroutines are done
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Collect results
+	var lasteps []models.Episode
+	for res := range resultChan {
+		if res.err != nil {
+			return nil, res.err
+		}
+		lasteps = append(lasteps, res.episodes...)
+	}
+
 	if len(lasteps) == 0 {
 		Logger.Info("No episodes found in the last 7 days")
 		return nil, fmt.Errorf("no episodes found in the last 7 days")
 	}
+
 	Logger.Info(fmt.Sprintf("Found %d episodes in the last 7 days", len(lasteps)))
 	return lasteps, nil
 }
