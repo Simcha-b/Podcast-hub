@@ -113,7 +113,6 @@ func DeleteFeedFromSources(feedURL string) error {
 	return nil
 }
 
-// TODO: Implement a worker pool to process feeds concurrently
 func AggregateAllFeeds(storage *FileStorage, feedSources []models.Feed) error {
 	var wg sync.WaitGroup
 
