@@ -1,8 +1,10 @@
 package services
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -48,10 +50,16 @@ func ParseNewFeedSources(url string) (*models.Feed, error) {
 
 // parseRSSFeed parses an RSS feed from the given URL and returns a Podcast and its Episodes
 func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 	fp := gofeed.NewParser()
+	feed, err := fp.ParseURLWithContext(url, ctx)
 
-	feed, err := fp.ParseURL(url)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			Logger.Error("Timed out while fetching RSS feed")
+			return nil, nil, fmt.Errorf("timed out while fetching RSS feed: %w", err)
+		}
 		// Log and return error if RSS feed parsing fails
 		Logger.Error(fmt.Sprintf("Failed to parse RSS feed from URL %s: %v", url, err))
 		return nil, nil, fmt.Errorf("failed to parse RSS feed: %w", err)

@@ -180,9 +180,9 @@ func ProcessSingleFeed(storage *FileStorage, feed models.Feed) error {
 	}
 
 	if newCount == 0 {
-		Logger.Info(fmt.Sprintf("No new episodes for podcast %s", podcast.ID))
+		Logger.Info(fmt.Sprintf("No new episodes for podcast %s", podcast.Title))
 	} else {
-		Logger.Info(fmt.Sprintf("Added %d new episodes for podcast %s", newCount, podcast.ID))
+		Logger.Info(fmt.Sprintf("Added %d new episodes for podcast: %s", newCount, podcast.Title))
 	}
 
 	return nil
