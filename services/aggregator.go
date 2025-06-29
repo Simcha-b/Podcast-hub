@@ -4,10 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
+	"time"
 
+	"github.com/Simcha-b/Podcast-Hub/config"
 	"github.com/Simcha-b/Podcast-Hub/models"
 )
+
+
+var cfg = config.LoadConfig()
 
 func LoadFeedSources(path string) ([]models.Feed, error) {
 	data, err := os.ReadFile(path)
@@ -80,34 +86,35 @@ func AddFeedToSources(feed models.Feed) error {
 }
 
 func DeleteFeedFromSources(feedURL string) error {
-    feeds, err := LoadFeedSources("data/feeds.json")
-    if err != nil {
-        return fmt.Errorf("failed to load feed sources: %w", err)
-    }
-    var updatedFeeds []models.Feed
-    found := false
-    for _, feed := range feeds {
-        if feed.URL == feedURL {
-            found = true
-        } else {
-            updatedFeeds = append(updatedFeeds, feed)
-        }
-    }
-    if !found {
+	feeds, err := LoadFeedSources("data/feeds.json")
+	if err != nil {
+		return fmt.Errorf("failed to load feed sources: %w", err)
+	}
+	var updatedFeeds []models.Feed
+	found := false
+	for _, feed := range feeds {
+		if feed.URL == feedURL {
+			found = true
+		} else {
+			updatedFeeds = append(updatedFeeds, feed)
+		}
+	}
+	if !found {
 		Logger.Error(fmt.Sprintf("Feed %s not found, nothing to delete", feedURL))
-        return ErrNotFound
-    }
-    data, err := json.MarshalIndent(updatedFeeds, "", "  ")
-    if err != nil {
-        return fmt.Errorf("failed to marshal updated feeds: %w", err)
-    }
-    if err := os.WriteFile("data/feeds.json", data, 0644); err != nil {
-        return fmt.Errorf("failed to write updated feeds to file: %w", err)
-    }
-    Logger.Info(fmt.Sprintf("Successfully deleted feed %s from sources", feedURL))
-    return nil
+		return ErrNotFound
+	}
+	data, err := json.MarshalIndent(updatedFeeds, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated feeds: %w", err)
+	}
+	if err := os.WriteFile("data/feeds.json", data, 0644); err != nil {
+		return fmt.Errorf("failed to write updated feeds to file: %w", err)
+	}
+	Logger.Info(fmt.Sprintf("Successfully deleted feed %s from sources", feedURL))
+	return nil
 }
 
+// TODO: Implement a worker pool to process feeds concurrently
 func AggregateAllFeeds(storage *FileStorage, feedSources []models.Feed) error {
 	var wg sync.WaitGroup
 
@@ -131,6 +138,55 @@ func AggregateAllFeeds(storage *FileStorage, feedSources []models.Feed) error {
 	wg.Wait()
 	Logger.Info("All feeds processed successfully")
 	return nil // Placeholder return, implement actual logic
+}
+
+func ProcessSingleFeed(storage *FileStorage, feed models.Feed) error {
+	podcast, episodes, err := parseRSSFeed(feed.URL)
+	if err != nil {
+		Logger.Error(fmt.Sprintf("Failed to process feed %s: %v", feed.URL, err))
+		return err
+	}
+	if podcast == nil || len(episodes) == 0 {
+		return fmt.Errorf("no valid podcast or episodes found for feed %s", feed.URL)
+	}
+
+	if err := storage.SavePodcast(podcast); err != nil {
+		Logger.Error(fmt.Sprintf("Failed to save podcast %s: %v", podcast.ID, err))
+		return err
+	}
+
+	// load existing episodes for the podcast
+	existingEpisodes, err := storage.LoadEpisodes(podcast.ID)
+	if err != nil {
+		Logger.Info(fmt.Sprintf("No existing episodes found for podcast %s (new podcast)", podcast.ID))
+		existingEpisodes = []models.Episode{}
+	}
+
+	// Create a map of existing episodes for quick lookup
+	existingMap := make(map[string]models.Episode)
+	for _, ep := range existingEpisodes {
+		existingMap[ep.ID] = ep
+	}
+
+	//save new episodes
+	newCount := 0
+	for _, episode := range episodes {
+		if _, exists := existingMap[episode.ID]; !exists {
+			if err := storage.SaveEpisode(&episode); err != nil {
+				Logger.Error(fmt.Sprintf("Failed to save episode %s for podcast %s: %v", episode.ID, podcast.ID, err))
+				return err
+			}
+			newCount++
+		}
+	}
+
+	if newCount == 0 {
+		Logger.Info(fmt.Sprintf("No new episodes for podcast %s", podcast.ID))
+	} else {
+		Logger.Info(fmt.Sprintf("Added %d new episodes for podcast %s", newCount, podcast.ID))
+	}
+
+	return nil
 }
 
 func IsPodcastOrEpisodesUpdated(storage *FileStorage, podcast *models.Podcast, episodes []models.Episode) (bool, error) {
@@ -158,68 +214,48 @@ func IsPodcastOrEpisodesUpdated(storage *FileStorage, podcast *models.Podcast, e
 	return false, nil
 }
 
-func ProcessSingleFeed(storage *FileStorage, feed models.Feed) error {
-   podcast, episodes, err := parseRSSFeed(feed.URL)
-   if err != nil {
-   	Logger.Error(fmt.Sprintf("Failed to process feed %s: %v", feed.URL, err))
-   	return err
-   }
-   if podcast == nil || len(episodes) == 0 {
-   	return fmt.Errorf("no valid podcast or episodes found for feed %s", feed.URL)
-   }
-
-   if err := storage.SavePodcast(podcast); err != nil {
-   	Logger.Error(fmt.Sprintf("Failed to save podcast %s: %v", podcast.ID, err))
-   	return err
-   }
-
-   // טען את כל הפרקים השמורים (אם קיימים)
-   existingEpisodes, err := storage.LoadEpisodes(podcast.ID)
-   if err != nil {
-   	// אם הפודקאסט חדש, זה תקין - פשוט תתחיל עם רשימה ריקה
-   	Logger.Info(fmt.Sprintf("No existing episodes found for podcast %s (new podcast)", podcast.ID))
-   	existingEpisodes = []models.Episode{}
-   }
-   
-   existingMap := make(map[string]models.Episode)
-   for _, ep := range existingEpisodes {
-   	existingMap[ep.ID] = ep
-   }
-
-   // שמור את כל הפרקים החדשים
-   newCount := 0
-   for _, episode := range episodes {
-   	if _, exists := existingMap[episode.ID]; !exists {
-   		if err := storage.SaveEpisode(&episode); err != nil {
-   			Logger.Error(fmt.Sprintf("Failed to save episode %s for podcast %s: %v", episode.ID, podcast.ID, err))
-   			return err
-   		}
-   		newCount++
-   	}
-   }
-   
-   if newCount == 0 {
-   	Logger.Info(fmt.Sprintf("No new episodes for podcast %s", podcast.ID))
-   } else {
-   	Logger.Info(fmt.Sprintf("Added %d new episodes for podcast %s", newCount, podcast.ID))
-   }
-   
-   return nil
-}
-
 func RunAggregator() {
-	// Load feed sources from JSON file
-	feedSources, err := LoadFeedSources("data/feeds.json")
+	
+	Logger.Info("Starting RSS Aggregator with ticker...")
+
+	interval, err := strconv.Atoi(cfg.TIME_INTERVAL)
 	if err != nil {
-		Logger.Error(fmt.Sprintf("Failed to load feed sources: %v", err))
-		return
+		Logger.Error(fmt.Sprintf("Invalid TIME_INTERVAL: %v", err))
+		interval = 30 // Default to 30 minutes if parsing fails
+	}
+	// Ticker that runs every 30 minutes (can be changed as needed)
+	ticker := time.NewTicker(time.Duration(interval) * time.Minute)
+	defer ticker.Stop()
+
+	// Initialize storage
+	storage := NewFileStorage(cfg.DATA_DIR)
+
+	// Function to perform the aggregation logic
+	doAggregation := func() {
+		// Load feed sources from JSON file
+		feedSources, err := LoadFeedSources(cfg.DATA_DIR + "/feeds.json")
+		if err != nil {
+			Logger.Error(fmt.Sprintf("Failed to load feed sources: %v", err))
+			return
+		}
+
+		Logger.Info(fmt.Sprintf("Processing %d feeds", len(feedSources)))
+
+		// Aggregate all feeds
+		if err := AggregateAllFeeds(storage, feedSources); err != nil {
+			Logger.Error(fmt.Sprintf("Error aggregating feeds: %v", err))
+		} else {
+			Logger.Info("Aggregation completed successfully")
+		}
 	}
 
-	// Initialize storage (assuming FileStorage is defined elsewhere)
-	storage := NewFileStorage("data")
+	// הרצה ראשונית מיד
+	Logger.Info("Running initial aggregation...")
+	doAggregation()
 
-	// Aggregate all feeds
-	if err := AggregateAllFeeds(storage, feedSources); err != nil {
-		Logger.Error(fmt.Sprintf("Error aggregating feeds: %v", err))
+	// לולאה שמקשיבה לטיקר
+	for range ticker.C {
+		Logger.Info("Running scheduled aggregation...")
+		doAggregation()
 	}
 }
