@@ -74,7 +74,7 @@ func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
 		Author:      feed.Author.Name,
 		ImageURL:    feed.Image.URL,
 		FeedURL:     url,
-		Category:    "",
+		Category:    feed.Categories[0],
 		Language:    feed.Language,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -89,6 +89,8 @@ func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
 			Title:       item.Title,
 			Description: item.Description,
 			CreatedAt:   time.Now(),
+			Link:        item.Link,
+
 		}
 
 		// Set PublishedAt if available in the feed item

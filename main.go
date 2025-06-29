@@ -24,7 +24,10 @@ func main() {
 	r.HandleFunc("/api/podcasts/{id}/episodes", handlers.GetPodcastEpisodes).Methods("GET")
 	r.HandleFunc("/api/podcast/{podcastId}/{episodeId}", handlers.GetEpisodeByID).Methods("GET")
 	r.HandleFunc("/api/lastEpisodes", handlers.GetLastEpisodes).Methods("GET")
+
 	r.HandleFunc("/api/search", handlers.Search).Methods("GET")
+	r.HandleFunc("/api/download", handlers.GetDownloadLink).Methods("GET")
+
 	r.HandleFunc("/api/feeds", handlers.AddFeed).Methods("GET")
 	r.HandleFunc("/api/feeds", handlers.DeleteFeed).Methods("DELETE")
 	r.HandleFunc("/api/stats", handlers.GetStats).Methods("GET")
