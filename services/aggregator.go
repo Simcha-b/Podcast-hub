@@ -12,7 +12,6 @@ import (
 	"github.com/Simcha-b/Podcast-Hub/models"
 )
 
-
 var cfg = config.LoadConfig()
 
 func LoadFeedSources(path string) ([]models.Feed, error) {
@@ -215,7 +214,7 @@ func IsPodcastOrEpisodesUpdated(storage *FileStorage, podcast *models.Podcast, e
 }
 
 func RunAggregator() {
-	
+
 	Logger.Info("Starting RSS Aggregator with ticker...")
 
 	interval, err := strconv.Atoi(cfg.TIME_INTERVAL)
@@ -249,11 +248,8 @@ func RunAggregator() {
 		}
 	}
 
-	// הרצה ראשונית מיד
 	Logger.Info("Running initial aggregation...")
 	doAggregation()
-
-	// לולאה שמקשיבה לטיקר
 	for range ticker.C {
 		Logger.Info("Running scheduled aggregation...")
 		doAggregation()

@@ -3,16 +3,21 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
+	"github.com/Simcha-b/Podcast-Hub/config"
 	"github.com/Simcha-b/Podcast-Hub/services"
 	"github.com/Simcha-b/Podcast-Hub/utils"
+
 	"github.com/gorilla/mux"
 )
 
-var Logger = utils.NewLogger("info")
+var cfg = config.LoadConfig()
 
-var storage = services.NewFileStorage("data")
+var Logger = utils.NewLogger(cfg.LOG_LEVEL)
+
+var storage = services.NewFileStorage(cfg.DATA_DIR)
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
@@ -191,30 +196,47 @@ func GetLastEpisodes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, episods)
 }
 
-// func GetDownloadLink(w http.ResponseWriter, r *http.Request) {
-// 	vars := mux.Vars(r)
-// 	episodeId := vars["id"]
-// 	episode, err := storage.LoadEpisodeByID(episodeId)
-// 	if err != nil {
-// 		if errors.Is(err, services.ErrNotFound) {
-// 			Logger.Info("Episode not found with ID: " + episodeId)
-// 			http.Error(w, "Episode not found", http.StatusNotFound)
-// 			return
-// 		}
-// 		Logger.Error("Failed to fetch episode: " + err.Error())
-// 		http.Error(w, "Failed to fetch episode", http.StatusInternalServerError)
-// 		return
-// 	}
-// 	if episode.AudioURL == "" {
-// 		Logger.Info("No audio URL found for episode ID: " + episodeId)
-// 		http.Error(w, "No audio URL found for this episode", http.StatusNotFound)
-// 		return
-// 	}
-// 	writeJSON(w, http.StatusOK, map[string]string{"download_link": episode.AudioURL})
-// }
+func GetDownloadLink(w http.ResponseWriter, r *http.Request) {
+	podcastId := r.URL.Query().Get("podcastId")
+	episodeId := r.URL.Query().Get("episodeId")
+
+	episode, err := storage.LoadEpisodeByID(podcastId, episodeId)
+	if err != nil {
+		if errors.Is(err, services.ErrNotFound) {
+			Logger.Info("Episode not found with ID: " + episodeId)
+			http.Error(w, "Episode not found", http.StatusNotFound)
+			return
+		}
+		Logger.Error("Failed to fetch episode: " + err.Error())
+		http.Error(w, "Failed to fetch episode", http.StatusInternalServerError)
+		return
+	}
+	if episode.AudioURL == "" {
+		Logger.Info("No audio URL found for episode ID: " + episodeId)
+		http.Error(w, "No audio URL found for this episode", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"download_link": episode.AudioURL})
+}
 
 func GetStats(w http.ResponseWriter, r *http.Request) {
-	
-}
-func GetDailyReport(w http.ResponseWriter, r *http.Request) {
+	podcasts, err := storage.LoadAllPodcasts()
+	if err != nil {
+		http.Error(w, "Failed to fetch podcasts", http.StatusInternalServerError)
+		Logger.Error("Failed to fetch podcasts")
+		return
+	}
+
+	totalEpisodes := 0
+	for _, podcast := range podcasts {
+		totalEpisodes += podcast.NumOfEpisodes
+	}
+
+	stats := map[string]int{
+		"podcast_count": len(podcasts),
+		"episode_count": totalEpisodes,
+	}
+	Logger.Info(fmt.Sprintf("Stats result: %v", stats))
+	writeJSON(w, http.StatusOK, stats)
+
 }

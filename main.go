@@ -16,7 +16,7 @@ func main() {
 	myFigure := figure.NewColorFigure("Podcast-Hub!!", "", "red", true)
 	myFigure.Print()
 
-	services.RunAggregator()
+	go services.RunAggregator()
 
 	r := mux.NewRouter()
 	r.HandleFunc("/api/podcasts", handlers.GetPodcasts).Methods("GET")
@@ -28,7 +28,6 @@ func main() {
 	r.HandleFunc("/api/feeds", handlers.AddFeed).Methods("GET")
 	r.HandleFunc("/api/feeds", handlers.DeleteFeed).Methods("DELETE")
 	r.HandleFunc("/api/stats", handlers.GetStats).Methods("GET")
-	r.HandleFunc("/api/reports/daily", handlers.GetDailyReport).Methods("GET")
 
 	// Starting the server
 	handlers.Logger.Info("Starting server on port 8080")

@@ -42,7 +42,8 @@ func (fs *FileStorage) SavePodcast(podcast *models.Podcast) error {
 		return fmt.Errorf("failed to load all podcasts: %w", err)
 	}
 
-	// בדיקה אם הפודקאסט כבר קיים (עדכון במקום הוספה כפולה)
+	
+	//check if the podcast exist 
 	updated := false
 	for i, p := range podcasts {
 		if p.ID == podcast.ID {

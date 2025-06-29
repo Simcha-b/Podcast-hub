@@ -14,7 +14,8 @@ import (
 )
 
 // Logger instance for logging within the parser service
-var Logger = utils.NewLogger("info")
+
+var Logger = utils.NewLogger(cfg.LOG_LEVEL)
 
 func generatePodcastID(feedURL string) string {
 	h := sha1.New()
@@ -40,7 +41,7 @@ func ParseNewFeedSources(url string) (*models.Feed, error) {
 		LastFetched: time.Now(),
 		ErrorCount:  0,
 	}
-	log.Printf(feed.Updated)	
+	log.Printf(feed.Updated)
 	Logger.Info(fmt.Sprintf("Successfully parsed RSS feed: %s", feed.Title))
 	return newfeed, nil
 }
@@ -65,7 +66,7 @@ func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
 		Author:      feed.Author.Name,
 		ImageURL:    feed.Image.URL,
 		FeedURL:     url,
-		Category:    "", 
+		Category:    "",
 		Language:    feed.Language,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -95,6 +96,7 @@ func parseRSSFeed(url string) (*models.Podcast, []models.Episode, error) {
 		}
 		episodes = append(episodes, episode)
 	}
+	podcast.NumOfEpisodes = len(episodes)
 	Logger.Info(fmt.Sprintf("Parsed %d episodes from the feed", len(episodes)))
 	return podcast, episodes, nil
 }

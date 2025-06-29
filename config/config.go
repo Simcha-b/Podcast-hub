@@ -13,6 +13,7 @@ type config struct {
 	PORT          string
 	DATA_DIR      string
 	TIME_INTERVAL string
+	LOG_LEVEL     string
 }
 
 func LoadConfig() *config {
@@ -25,6 +26,7 @@ func LoadConfig() *config {
 		PORT:          os.Getenv("PORT"),
 		DATA_DIR:      os.Getenv("DATA_DIR"),
 		TIME_INTERVAL: os.Getenv("TIME_INTERVAL"),
+		LOG_LEVEL:     os.Getenv("LOG_LEVEL"),
 	}
 	return &config
 }
