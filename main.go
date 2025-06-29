@@ -15,7 +15,6 @@ func main() {
 	// fmt.Println("welcome to the Podcast-Hub!!")
 	myFigure := figure.NewColorFigure("Podcast-Hub!!", "", "red", true)
 	myFigure.Print()
-	// Load environment variables
 
 	services.RunAggregator()
 
@@ -23,7 +22,6 @@ func main() {
 	r.HandleFunc("/api/podcasts", handlers.GetPodcasts).Methods("GET")
 	r.HandleFunc("/api/podcasts/{id}", handlers.GetPodcastByID).Methods("GET")
 	r.HandleFunc("/api/podcasts/{id}/episodes", handlers.GetPodcastEpisodes).Methods("GET")
-	// r.HandleFunc("/api/episodes", handlers.GetEpisodes).Methods("GET")
 	r.HandleFunc("/api/podcast/{podcastId}/{episodeId}", handlers.GetEpisodeByID).Methods("GET")
 	r.HandleFunc("/api/lastEpisodes", handlers.GetLastEpisodes).Methods("GET")
 	r.HandleFunc("/api/search", handlers.Search).Methods("GET")

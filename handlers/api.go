@@ -76,9 +76,6 @@ func GetPodcastEpisodes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, episodes)
 }
 
-func GetEpisodes(w http.ResponseWriter, r *http.Request) {
-	//TODO: Implement GetEpisodes handler
-}
 func GetEpisodeByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	if vars["podcastId"] == "" || vars["episodeId"] == "" {
@@ -217,8 +214,7 @@ func GetLastEpisodes(w http.ResponseWriter, r *http.Request) {
 // }
 
 func GetStats(w http.ResponseWriter, r *http.Request) {
-	// החזרת סטטיסטיקות מערכת
+	
 }
 func GetDailyReport(w http.ResponseWriter, r *http.Request) {
-	// הפקת דוח יומי
 }
